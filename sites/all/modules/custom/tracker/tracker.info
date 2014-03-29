@@ -1,0 +1,11 @@
+name = Tracker
+description = "Track nodes"
+package = Tracker
+core = 7.x
+files[] = tracker.module
+
+version = "7.x-1.0"
+core = "7.x"
+project = "tracker"
+datestamp = "1359651687"
+

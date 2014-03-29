@@ -1,0 +1,162 @@
+<?php
+
+/**
+ * @file
+ * Add new location to node tracker
+ */
+
+/**
+ * Drupal hooks
+ */
+function tracker_init() {
+//  dpm(node_load(1));
+}
+/**
+ * Implements hook_menu().
+ */
+function tracker_menu() {
+  // AJAX callback.
+  // @see http://drupal.org/project/js
+  $items['tracker/set'] = array(
+    'title' => '', 
+    'page callback' => 'tracker_set', 
+    'access arguments' => array('access content'), 
+    'type' => MENU_CALLBACK,
+  );
+  $items['test'] = array(
+    'title' => '', 
+    'page callback' => 'tracker_test', 
+    'access arguments' => array('access content'), 
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Callbacks
+ */
+
+//callback for tracker/set
+function tracker_set($id = '', $lat = '', $lng = '') {
+
+  $view = views_get_view('tracker_view');
+  $view->set_arguments(array($id));
+  $view->execute();
+  $items = array();
+
+  if (empty($view->result)) {
+    $node = _tracker_create_node($id, $lat, $lng);
+    node_save($node);
+
+    $result = array(
+      'status' => 'ok',
+      'response' => 'New item created for: ' . $id,
+    );
+    drupal_json_output($result);
+    
+    return;
+  }
+
+  // check to see if lat lng are already insearted
+  foreach ($view->result[0]->field_field_location as $key => $value) {
+    if ($value['raw']['latitude'] == $lat && $value['raw']['longitude'] == $lng) {
+      $result = array(
+        'status' => 'ok',
+        'response' => 'Lat: ' . $lat . ', Lng: ' . $lng . ' already exist for: ' . $id,
+      );
+      drupal_json_output($result);
+      
+      return;
+    }
+  }
+
+  $new_location = _tracker_get_location($lat, $lng); 
+
+  $node = node_load($view->result[0]->nid);
+  $node->field_location['und'][] = $new_location;
+  node_save($node);
+
+  $result = array(
+    'status' => 'ok',
+    'response' => 'New entry created for: ' . $id . ' with Lat: ' . $lat . ', Lng: ' . $lng,
+  );
+  drupal_json_output($result);
+
+  //print_r($node);
+//print "id: " . $id . ", lat: " . $lat . ", lng: " . $lng . "\n<pre>" . print_r($node, TRUE) . "</pre>";
+}
+
+//http://local.tracker/tracker/set/01:23:45:67:89:AB/-33.000000/151.999999
+
+// callback for /test
+function tracker_test() {
+
+  $url = 'http://local.tracker/tracker/set/58:23:45:67:89:AB/-33.457889/151.789789';
+  dpm($url);
+
+  $c = curl_init();
+  curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($c, CURLOPT_URL, $url);
+  $contents = curl_exec($c);
+  dpm($contents);
+  curl_close($c);
+
+  return 'end';
+}
+
+/**
+ * Helper functions
+ */
+
+function _tracker_get_location($lat = '', $lng = '') {
+
+  return array(
+    'lid' => '',
+    'name' => '',
+    'street' => '',
+    'additional' => '', 
+    'city' => '',
+    'province' => '',
+    'postal_code' => '',
+    'country' => 'au',
+    'latitude' => $lat,
+    'longitude' => $lng,
+    'source' => '1',
+    'is_primary' => '0',
+    'locpick' => array(
+            'user_latitude' => $lat,
+            'user_longitude' => $lng,
+        ),
+    'province_name' => '',
+    'country_name' => 'Australia',    
+  );
+}
+
+function _tracker_create_node($id = '', $lat = '', $lng = '') {
+  // add node properties
+  $newNode = (object) NULL;
+  $newNode->type = 'tracker';
+  $newNode->title = $id;
+  $newNode->uid = 1;//admin for the moment
+  $newNode->created = strtotime("now");
+  $newNode->changed = strtotime("now");
+  $newNode->status = 1;
+  $newNode->language = LANGUAGE_NONE;
+  $newNode->comment = 0;
+  $newNode->promote = 1;
+  $newNode->moderate = 0;
+  $newNode->sticky = 0;
+  $newNode->cid = '0';
+  $newNode->last_comment_name = '';
+  $newNode->comment_count = '0';
+  // add CCK field data
+  $newNode->field_tracker_id['und'][0] = array(
+    'value' => $id,
+    'format' => null,
+    'safe_value' => $id,
+    );$id;
+  $newNode->field_location['und'][0] = _tracker_get_location($lat, $lng);
+  
+  return $newNode;
+}
+
